@@ -11,7 +11,7 @@ from snakebite.errors import InvalidInputException
 from snakebite.errors import OutOfNNException
 from snakebite.channel import DataXceiverChannel
 from snakebite.config import HDFSConfig
-from . import YARN_PROTOCOL_VERSION
+from . import YARN_PROTOCOL_VERSION, dict_to_pb
 import urlparse
 
 import logging
@@ -82,33 +82,8 @@ class Client(object):
         req.application_id.cluster_timestamp = cluster_timestamp
         return self.service.getApplicationReport(req)
 
-    def submit_application(self, cluster_timestamp, app_id, priority, am_container_spec,
-        resource, keep_containers_across_application_attempts, application_tags,
-        application_name="N/A", unmanaged_am=False, cancel_tokens_when_complete=True,
-        max_attempts=0, application_type="YARN", queue="default"):
-        if not isinstance(resource, yarn_protos.ResourceProto):
-            resource = yarn_protos.ResourceProto(**resource)
-        if not isinstance(am_container_spec, yarn_protos.ContainerLaunchContextProto):
-            am_container_spec = container_launch_context(**am_container_spec)
-        if not isinstance(priority, yarn_protos.PriorityProto):
-            priority = yarn_protos.PriorityProto(**priority)
-
-        req = yarn_service_protos.SubmitApplicationRequestProto(
-            application_submission_context=yarn_protos.ApplicationSubmissionContextProto(
-                applicationTags=application_tags,
-                keep_containers_across_application_attempts=keep_containers_across_application_attempts,
-                unmanaged_am=unmanaged_am,
-                application_name=application_name,
-                applicationType=application_type,
-                cancel_tokens_when_complete=cancel_tokens_when_complete,
-                maxAppAttempts=max_attempts,
-                queue=queue,
-                priority=priority,
-                application_id=yarn_protos.ApplicationIdProto(id=app_id, cluster_timestamp=cluster_timestamp),
-                am_container_spec=am_container_spec,
-                resource=resource
-                )
-            )
+    def submit_application(self, **kwargs):
+        req = dict_to_pb(yarn_service_protos.SubmitApplicationRequestProto, kwargs)
         return self.service.submitApplication(req)
 
     def get_new_application(self):
