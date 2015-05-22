@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+
+import click
+import yarn.client
+from yarn import pb_to_dict
+from snakebite.errors import RequestError
+import sys
+from functools import partial
+import json
+
+@click.group()
+@click.option('--port', default=8032)
+@click.option('--host', required=True)
+@click.option('--output', type=click.Choice(['json', 'python', 'yaml']), default='json')
+@click.pass_context
+def yarn_cli(ctx, host, port, output):
+	client = yarn.client.Client(host, port)
+	ctx.obj['yarn_client'] = client
+	ctx.obj['output'] = partial(format_output, output)
+
+def format_output(fmt, val):
+	if val:
+		if fmt == 'json':
+			json.dump(val, sys.stdout, indent=2)
+			print ""
+		elif fmt == 'python':
+			import pprint
+			pp = pprint.PrettyPrinter(indent=2) 
+			pp.pprint(val)
+		elif fmt == 'yaml':
+			import yaml
+			yaml.dump(val, sys.stdout)
+
+@yarn_cli.command('list-nodes')
+@click.pass_context
+def list_nodes(ctx):
+	client = ctx.obj['yarn_client']
+	resp = client.get_cluster_nodes()
+	ctx.obj['output']([pb_to_dict(node) for node in resp])
+
+@yarn_cli.command('list-apps')
+@click.pass_context
+def list_apps(ctx):
+	ctx.obj['output']([pb_to_dict(app) for app in ctx.obj['yarn_client'].get_applications()])
+
+@yarn_cli.command('show-app')
+@click.argument('cluster_timestamp', type=long)
+@click.argument('app_id', type=int)
+@click.pass_context
+def get_app(ctx, cluster_timestamp, app_id):
+	ctx.obj['output'](pb_to_dict(ctx.obj['yarn_client'].get_application_report(cluster_timestamp, app_id)))
+
+@yarn_cli.command('kill-app')
+@click.argument('cluster_timestamp', type=long)
+@click.argument('app_id', type=int)
+@click.pass_context
+def get_app(ctx, cluster_timestamp, app_id):
+	ctx.obj['output'](pb_to_dict(ctx.obj['yarn_client'].force_kill_application(cluster_timestamp, app_id)))
+
+
+@yarn_cli.command('list-containers')
+@click.argument('cluster_timestamp', type=long)
+@click.argument('app_id', type=int)
+@click.pass_context
+def list_containers(ctx, cluster_timestamp, app_id):
+	ctx.obj['output'](ctx.obj['yarn_client'].get_containers(cluster_timestamp, app_id))
+
+@yarn_cli.command('cluster-metrics')
+@click.pass_context
+def get_cluster_metrics(ctx):
+	ctx.obj['output'](pb_to_dict(ctx.obj['yarn_client'].get_cluster_metrics()))
+
+
+@yarn_cli.command('submit')
+@click.argument('app_spec', type=click.File('r'), required=True)
+@click.pass_context
+def submit_app(ctx, app_spec):
+	client = ctx.obj['yarn_client']
+	spec = json.load(app_spec)
+
+	app_id = pb_to_dict(client.get_new_application())
+	spec['application_id'] = app_id['application_id']
+	ctx.obj['output'](client.submit_application(**spec))
+
+if __name__ == '__main__':
+	yarn_cli(obj={})
