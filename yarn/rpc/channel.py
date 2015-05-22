@@ -166,7 +166,7 @@ class SocketRpcChannel(RpcChannel):
     '''Socket implementation of an RpcChannel.
     '''
 
-    def __init__(self, host, port, version, context_protocol):
+    def __init__(self, host, port, version, context_protocol, timeout=30):
         '''SocketRpcChannel to connect to a socket server on a user defined port.'''
         self.host = host
         self.port = port
@@ -175,6 +175,7 @@ class SocketRpcChannel(RpcChannel):
         self.version = version
         self.client_id = str(uuid.uuid4())
         self.context_protocol = context_protocol
+        self.timeout = timeout
 
     def validate_request(self, request):
         '''Validate the client request against the protocol file.'''
@@ -209,7 +210,7 @@ class SocketRpcChannel(RpcChannel):
         # Open socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.sock.settimeout(10)
+        self.sock.settimeout(self.timeout)
         # Connect socket to server - defined by host and port arguments
         self.sock.connect((host, port))
 
